@@ -4,9 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.nn.modules.activation import ReLU
 
+
 def get_angles(pos, i, d_model):
     angle_rates = 1 / np.power(10000, 2*(i//2) / np.float(d_model))
     return pos * angle_rates
+
 
 def positional_encoding(position, d_model):  # d_model是位置编码的长度，相当于position encoding的embedding_dim？
     angle_rads = get_angles(np.arange(position)[:, np.newaxis],  # [50, 1]
@@ -18,13 +20,16 @@ def positional_encoding(position, d_model):  # d_model是位置编码的长度�
     pos_encoding = angle_rads[np.newaxis, ...]  # [50,512]=>[1,50,512]
     return torch.tensor(pos_encoding, dtype=torch.float32)
 
+
 def create_padding_mask(seq, pad):
     seq = torch.eq(seq, torch.tensor(pad)).float()
     return seq[:, np.newaxis, np.newaxis, :]
 
+
 def create_look_ahead_mask(size):
     mask = torch.triu(torch.ones(size, size), diagonal=1)
     return mask
+
 
 def scaled_dot_product_attention(q, k, v, mask=None):
     """计算注意力权重。
@@ -66,6 +71,7 @@ def point_wise_feed_forward_network(d_model, d_feedforward):
     )
 
     return feed_forward_net
+
 
 class MultiheadAttention(torch.nn.Module):
     def __init__(self, d_model, num_heads):

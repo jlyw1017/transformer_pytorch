@@ -1,43 +1,32 @@
-"""Script to download dataset."""
+# -*- coding: utf-8 -*-
+"""Tools to preprocess data and definatin of dataloader."""
+import unicodedata
+import re
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 import torch
 import torchtext
 
-from tqdm import tqdm  # 进度条
-import pandas as pd
-from sklearn.model_selection import train_test_split
-import unicodedata, re
-
 from hparameters import hparameters
 
-def unicodeToAscii(s):
-    return ''.join(c for c in unicodedata.normalize('NFD', s) 
-                    if unicodedata.category(c) != 'Mn')
-
-def normalizeString(s):
-    s = s.lower().strip()
-    s = unicodeToAscii(s)
-
-    # \1表示group(1)即第一个匹配到的 即匹配到'.'或者'!'或者'?'后，
-    # 一律替换成'空格.'或者'空格!'或者'空格？'
-    s = re.sub(r"([.!?])", r" \1", s)
-    # 非字母以及非.!?的其他任何字符 一律被替换成空格
-    s = re.sub(r"[^a-zA-Z.!?]", r" ", s)
-    # 将出现的多个空格，都使用一个空格代替。
-    # 例如：w='abc  1   23  1' 处理后：w='abc 1 23 1'
-    s = re.sub(r"[\s]+", " ", s)
-    
-    return s
 
 class DataLoader:
+    """Definition of dataloader for pytorch training.
+
+    Attributes:
+        data_iter
+    """
     def __init__(self, data_iter) -> None:
         self.data_iter = data_iter
-        self.length = len(data_iter)
 
     def __len__(self):
-        return self.length
+        return len(self.data_iter)
 
     def __iter__(self):
         for batch in self.data_iter:
+            # Why this shape?
             yield(torch.transpose(batch.src, 0, 1), 
                   torch.transpose(batch.targ, 0, 1))
 
@@ -45,7 +34,7 @@ class DataLoader:
 class CreateDataLoaders:
     def __init__(self, dataset_path):
         self.dataset_path = dataset_path
-        tokenizer = lambda x: x.split() # 分词器
+        tokenizer = lambda x: x.split(" ")
         self.src_text = torchtext.legacy.data.Field(
                 sequential=True,
                 tokenize=tokenizer,
@@ -64,36 +53,54 @@ class CreateDataLoaders:
                                    encoding='UTF-8', sep='\t', header=None,
                                    names=['deut', 'eng'], index_col=False)
 
-    def preprocess_data(self):
-        pairs = [[normalizeString(s) for s in line] for line in self.data_df.values]
-        # pairs = [[normalizeString(s) for s in line] for line in data_df.values]
+    def normalize_data(self):
+        """Normalizes data by means of coding, format and max length.
 
-        pairs = self.filter_pairs(pairs)
-        train_pairs, val_pairs = train_test_split(pairs, test_size=0.2, random_state=1234)
-        return train_pairs, val_pairs
+        Returns:
+            (list): list of normalized data.
+        """
+        sentence_pairs = [[normalizes_string(src_language),
+                           normalizes_string(tgt_language)]
+                          for src_language, tgt_language in self.data_df.values]
 
-    def filter_pairs(self, pairs):
-        def filterPair(p):
-            return len(p[0].split(' ')) < hparameters['max_sentence_len'] and \
-                   len(p[1].split(' ')) < hparameters['max_sentence_len']
+        sentence_pairs = filter_sentence_length(sentence_pairs,
+                                                hparameters["max_sentence_len"])
+        return sentence_pairs
 
-        return [[pair[0], pair[1]] for pair in pairs if filterPair(pair)]
+    def create_dataset(self, pairs):
+        """Creates dataset from list of sentence pairs.
 
-    def get_dataset(self, pairs):
-        fields = [('src', self.src_text), ('targ', self.targ_text)]  # filed信息 fields dict[str, Field])
-        examples = []  # list(Example)
-        for deu, eng in tqdm(pairs): # 进度条
+        Args:
+            pairs (list): list of sentence pairs.
+
+        Returns:
+            dataset (Dataset): a torchtext.legacy.data.Dataset
+        """
+        # filed信息 fields dict[str, Field])
+        fields = [('src', self.src_text), ('targ', self.targ_text)]
+
+        examples = []
+        for deu, eng in tqdm(pairs, desc="Creating examples."):
+            # Calls field.preprocess during when creating examples.
             # 创建Example时会调用field.preprocess方法
-            examples.append(torchtext.legacy.data.Example.fromlist([deu, eng], fields))
-        return examples, fields
+            examples.append(
+                torchtext.legacy.data.Example.fromlist([deu, eng], fields))
+        dataset = torchtext.legacy.data.Dataset(examples, fields)
+        return dataset
 
     def build_data_loader(self):
-        train_pairs, val_pairs = self.preprocess_data()
-        train_examples, train_fields = self.get_dataset(train_pairs)
-        val_examples, val_fields = self.get_dataset(val_pairs)
+        """Builds dataloader from input data.
 
-        train_dataset = torchtext.legacy.data.Dataset(train_examples, train_fields)
-        val_dataset = torchtext.legacy.data.Dataset(val_examples, val_fields)
+        Returns:
+            train_dataloader (DataLoader): dataloader for training.
+            val_dataloader (DataLoader): dataloader for validation.
+        """
+        sentence_pairs = self.normalize_data()
+        train_pairs, val_pairs = train_test_split(sentence_pairs, test_size=0.2,
+                                                  random_state=1234)
+
+        train_dataset = self.create_dataset(train_pairs)
+        val_dataset = self.create_dataset(val_pairs)
 
         self.src_text.build_vocab(train_dataset)
         self.targ_text.build_vocab(val_dataset)
@@ -108,3 +115,56 @@ class CreateDataLoaders:
         train_dataloader = DataLoader(train_iter)
         val_dataloader = DataLoader(val_iter)
         return train_dataloader, val_dataloader
+
+
+def filter_sentence_length(sentence_pairs, max_length):
+    """Filters sentence pairs by max length.
+
+    Args:
+        sentence_pairs (list): list of pairs of sentences.
+        max_length (int): max words num in each sentence.
+
+    Returns:
+      filter_result (list): filtered sentence pairs.
+    """
+    filter_result = [[src, tgt] for src, tgt in sentence_pairs
+                     if len(src.split(" ")) < max_length and
+                     len(tgt.split(" ")) < max_length]
+    return filter_result
+
+
+def unicode_to_ascii(s):
+    """Decodes unicode to ascii.
+
+    Args:
+        s (str): input string.
+
+    Returns:
+        (str): string in ascii.
+    """
+    return ''.join(c for c in unicodedata.normalize('NFD', s)
+                   if unicodedata.category(c) != 'Mn')
+
+
+def normalizes_string(s):
+    """Normalizes input string to standard format in tree steps.
+
+    1 Adds space before the first "?" "!" or "."
+    2 Replace any non-alphabet not "?" "!" or "." char with space.
+    3 Merges multiple spaces.
+
+    Args:
+        s (str): input string
+
+    Returns:
+        s (str): normalized string.
+    """
+    # Unify code.
+    s = s.lower().strip()
+    s = unicode_to_ascii(s)
+
+    # Standardized formats.
+    s = re.sub(r"([.!?])", r" \1", s)
+    s = re.sub(r"[^a-zA-Z.!?]", r" ", s)
+    s = re.sub(r"[\s]+", " ", s)
+    return s

@@ -1,14 +1,18 @@
-import torch
-import time
-from torch._C import device
-from torch.optim import lr_scheduler
-from model.utils import create_look_ahead_mask, create_padding_mask
-from model.transformer import Transformer
-from hparameters import hparameters
-from dataloaders.dataloader import CreateDataLoaders
-import pandas as pd
+"""Api for training model."""
 import copy
 import os
+
+import pandas as pd
+import torch
+from torch._C import device
+from torch.optim import lr_scheduler
+import time
+
+from dataloaders.dataloader import CreateDataLoaders
+from hparameters import hparameters
+from model.transformer import Transformer
+from model.utils import create_look_ahead_mask, create_padding_mask
+
 
 class CustomSchedule(torch.optim.lr_scheduler._LRScheduler):
     def __init__(self, optimizer, d_model, warmup_steps=4):
@@ -26,6 +30,7 @@ class CustomSchedule(torch.optim.lr_scheduler._LRScheduler):
         # print('dynamic_lr:', dynamic_lr)
         return [dynamic_lr for group in self.optimizer.param_groups]
 
+
 def mask_accuracy_func(real, pred, pad=1):
     pred = pred.argmax(dim=-1)
     corrects = pred.eq(real)
@@ -35,6 +40,7 @@ def mask_accuracy_func(real, pred, pad=1):
     corrects *= mask
 
     return corrects.sum().float() / mask.sum().item()
+
 
 def mask_loss_function(real, pred, pad=1):
     loss_object = torch.nn.CrossEntropyLoss(reduction='none')
@@ -46,6 +52,7 @@ def mask_loss_function(real, pred, pad=1):
 
     return loss.sum() / mask.sum().item()
 
+
 def create_mask(inp, target):
     enc_padding_mask = create_padding_mask(inp, pad=1)
     dec_padding_mask = create_padding_mask(inp, pad=1)
@@ -55,7 +62,8 @@ def create_mask(inp, target):
     combined_mask = torch.max(dec_target_padding_mask, look_ahead_mask)
 
     return enc_padding_mask, combined_mask, dec_padding_mask
-    
+
+
 def validate_step(model, inp, targ, device):
     targ_inp = targ[:, :-1]
     targ_real = targ[:, 1:]
@@ -101,7 +109,8 @@ def train_model():
                               pe_target=hparameters['target_vocab_size'])
     transformer = transformer.to(device)
     
-    optimizer = torch.optim.Adam(transformer.parameters(), lr=0, betas=(0.9, 0.98), eps=1e-9)
+    optimizer = torch.optim.Adam(transformer.parameters(), lr=0,
+                                 betas=(0.9, 0.98), eps=1e-9)
     lr_scheduler = CustomSchedule(optimizer, 
                                   hparameters['d_model'], 
                                   warmup_steps=4000)
