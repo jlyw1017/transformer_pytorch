@@ -13,8 +13,8 @@ class DecoderLayer(torch.nn.Module):
                  dropout_rate=0.1):
         super(DecoderLayer, self).__init__()
 
-        self.mha1 = MultiHeadAttention(d_model, num_heads)
-        self.mha2 = MultiHeadAttention(d_model, num_heads)
+        self.mha1 = MultiHeadAttention(d_model, num_heads, 64, 64)
+        self.mha2 = MultiHeadAttention(d_model, num_heads, 64, 64)
 
         self.ffn = point_wise_feed_forward_network(d_model, d_feedforward)
 

@@ -12,7 +12,7 @@ class EncoderLayer(torch.nn.Module):
                  dropout_rate=0.1):
         super(EncoderLayer, self).__init__()
 
-        self.mha = MultiHeadAttention(d_model, num_heads)
+        self.mha = MultiHeadAttention(d_model, num_heads, 64, 64)
         self.ffn = point_wise_feed_forward_network(d_model, d_feedforward)
 
         self.layernorm1 = torch.nn.LayerNorm(normalized_shape=d_model, eps=1e-6)
