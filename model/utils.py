@@ -11,6 +11,7 @@ def get_angles(pos, i, d_model):
 
 
 def positional_encoding(position, d_model):  # d_model是位置编码的长度，相当于position encoding的embedding_dim？
+    """Encodes positional information to """
     angle_rads = get_angles(np.arange(position)[:, np.newaxis],  # [50, 1]
                             np.arange(d_model)[np.newaxis, :],  # [1, d_model=512]
                             d_model)
@@ -73,32 +74,53 @@ def point_wise_feed_forward_network(d_model, d_feedforward):
     return feed_forward_net
 
 
-class MultiheadAttention(torch.nn.Module):
-    def __init__(self, d_model, num_heads):
-        super(MultiheadAttention, self).__init__()
+class MultiHeadAttention(torch.nn.Module):
+    """The definition MultiHeadAttention Layer.
+
+    input: [batch, padded_sentence_length, d_model]
+    Creates the q and k with matrix wq and wk as [d_model, dq] dq = dk must
+    be satisfied.
+    dq doesn't has to be the same as d_model, in the paper it is 64.
+
+    softmax(q * kt/ sqrt(dk)): [sentence_length, sentence_length]
+
+    Creates v with matrix wv [d_model, dv] get v with [sentence_length, dv]
+    single head z = softmax(q * kt/ sqrt(dk)) * v with [sentence_length, dv]
+
+    wq: [num_head * dv, d_model] the column of wo must be d_model to keep the
+    feature size of each word.
+
+    In the parpar "All you need is attention" dq = dk = dv = d_model / num head.
+    Actually, dq = dk,  dz = dv
+    The num_head is not related to d_model.
+    """
+
+    def __init__(self, d_model, num_heads, dqk, dv):
+        super(MultiHeadAttention, self).__init__()
         self.d_model = d_model
         self.num_heads = num_heads
+        self.dqk = dqk
+        self.dv = dv
 
-        assert d_model % self.num_heads == 0, "d_model must be divisible by num_heads!"
+        #assert d_model % self.num_heads == 0, "d_model must be divisible by
+        # num_heads!"
+        #self.depth = d_model // self.num_heads
 
-        self.depth = d_model // self.num_heads
-
-        self.wq = torch.nn.Linear(d_model, d_model)
-        self.wk = torch.nn.Linear(d_model, d_model)
-        self.wv = torch.nn.Linear(d_model, d_model)
-    
-        self.wfinal = torch.nn.Linear(d_model, d_model)
+        self.wq = torch.nn.Linear(d_model, dqk)
+        self.wk = torch.nn.Linear(d_model, dqk)
+        self.wv = torch.nn.Linear(d_model, dv)
+        self.woutput = torch.nn.Linear(num_heads * dv, d_model)
 
     def split_heads(self, x, batch_size):
         x = x.view(batch_size, -1, self.num_heads, self.depth)
         return x.transpose(1,2)
 
-    def forward(self, q, k, v, mask):
-        batch_size = q.shape[0]
+    def forward(self, x, mask):
+        batch_size = x.shape[0]
 
-        q = self.wq(q)
-        k = self.wk(k)
-        v = self.wv(v)
+        q = self.wq(x)
+        k = self.wk(x)
+        v = self.wv(x)
 
         q = self.split_heads(q, batch_size)
         k = self.split_heads(k, batch_size)
@@ -108,6 +130,6 @@ class MultiheadAttention(torch.nn.Module):
         scaled_attention = scaled_attention.transpose(1, 2)
         concat_attention = scaled_attention.reshape(batch_size, -1, self.d_model)
 
-        output = self.wfinal(concat_attention)
+        output = self.woutput(concat_attention)
         return output, attention_weights
 # end class MultiheadAttention

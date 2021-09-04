@@ -1,31 +1,33 @@
 """A pytorch implementation of transformer model."""
 import argparse
+import json
 
 from train import train_model
 
-parser = argparse.ArgumentParser()
 
-parser.add_argument("-d", "--data", default="./",
-                    help="data source")
+def get_parser():
+    """Gets parser."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config",
+                        default="./configs/config.json",
+                        help="config file path.")
+    parser.add_argument("-t", "--training", default=True,
+                        help="Training mode if True inference mode if False.")
+    return parser
 
-parser.add_argument("-o", "--output", default="./result/",
-                    help="output path.")
-
-parser.add_argument("-c", "--config", default="./config/",
-                    help="config file path.")
-
-
-parser.add_argument("-t", "--training", default=True,
-                    help="Training mode if True inference mode if False.")
 
 def main():
-  args = parser.parse_args()
-  data_path = args.data
-  output_path = args.output
-  training_mode = args.training
+    parser = get_parser()
+    args = parser.parse_args()
 
-  train_model()
+    with open(args.config) as json_file:
+        config = json.load(json_file)
+
+    print(config)
+
+    train_model()
+
 
 if __name__ == '__main__':
-  main()
+    main()
 

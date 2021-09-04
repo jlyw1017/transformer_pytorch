@@ -1,8 +1,8 @@
 import torch
-from .utils import positional_encoding, \
-                   scaled_dot_product_attention, \
-                   point_wise_feed_forward_network, \
-                   MultiheadAttention
+from model.utils import positional_encoding, \
+                           scaled_dot_product_attention, \
+                           point_wise_feed_forward_network, \
+                           MultiHeadAttention
 
 class EncoderLayer(torch.nn.Module):
     def __init__(self, 
@@ -12,7 +12,7 @@ class EncoderLayer(torch.nn.Module):
                  dropout_rate=0.1):
         super(EncoderLayer, self).__init__()
 
-        self.mha = MultiheadAttention(d_model, num_heads)
+        self.mha = MultiHeadAttention(d_model, num_heads)
         self.ffn = point_wise_feed_forward_network(d_model, d_feedforward)
 
         self.layernorm1 = torch.nn.LayerNorm(normalized_shape=d_model, eps=1e-6)
@@ -31,7 +31,7 @@ class EncoderLayer(torch.nn.Module):
         # out2 = self.layernorm2(out1 + ffn_output)
 
         # return out2
-        attn_output, _ = self.mha(x, x, x, mask)  # =>[b, seq_len, d_model]
+        attn_output, _ = self.mha(x, mask)  # =>[b, seq_len, d_model]
         attn_output = self.dropout1(attn_output)
         out1 = self.layernorm1(x + attn_output)  # 残差&层归一化 =>[b, seq_len, d_model]
 
@@ -44,25 +44,41 @@ class EncoderLayer(torch.nn.Module):
 # end class EncoderLayer
 
 class Encoder(torch.nn.Module):
+    """Encodes the inputs.
+
+    Attributes:
+        vocab_dict_size (int): size of the vocabulary dict size.
+        padded_sentence_length (int): max sentence length.
+        num_encoder_layers (int): layer num of encoder, each layer consists of a
+    multiheadattention layer and a residual layer.
+        d_model (int): embeds the input word into a vector as
+    d_model dimension and it is the same as row number of wq, wk and wv.
+
+
+    """
     def __init__(self,
-                 num_layers,  # N个encoder layer
+                 vocab_dict_size,
+                 padded_sentence_length,
+                 num_encoder_layers,
                  d_model,
                  num_heads,
                  dff,  # 点式前馈网络内层fn的维度
-                 input_vocab_size,  # 输入词表大小（源语言（法语））
-                 maximun_position_encoding,
                  rate=0.1):
         super(Encoder, self).__init__()
 
-        self.num_layers = num_layers
+        self.num_layers = num_encoder_layers
         self.d_model = d_model
 
-        self.embedding = torch.nn.Embedding(num_embeddings=input_vocab_size, embedding_dim=d_model)
-        self.pos_encoding = positional_encoding(maximun_position_encoding,
-                                                d_model)  # =>[1, max_pos_encoding, d_model=512]
+        self.embedding = torch.nn.Embedding(num_embeddings=vocab_dict_size,
+                                            embedding_dim=d_model)
+        self.pos_encoding = positional_encoding(padded_sentence_length,
+                                                d_model)
+        # =>[1, max_pos_encoding, d_model=512]
 
         # self.enc_layers = [EncoderLayer(d_model, num_heads, dff, rate).cuda() for _ in range(num_layers)] # 不行
-        self.enc_layers = torch.nn.ModuleList([EncoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)])
+        self.enc_layers = torch.nn.ModuleList(
+            [EncoderLayer(d_model, num_heads, dff, rate)
+             for _ in range(num_encoder_layers)])
 
         self.dropout = torch.nn.Dropout(rate)
 

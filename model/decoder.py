@@ -1,8 +1,9 @@
 import torch
 from torch.nn.modules import dropout
-from .utils import point_wise_feed_forward_network, \
-                   positional_encoding, \
-                   MultiheadAttention
+from model.utils import (point_wise_feed_forward_network,
+                         positional_encoding,
+                         MultiHeadAttention)
+
 
 class DecoderLayer(torch.nn.Module):
     def __init__(self,
@@ -12,8 +13,8 @@ class DecoderLayer(torch.nn.Module):
                  dropout_rate=0.1):
         super(DecoderLayer, self).__init__()
 
-        self.mha1 = MultiheadAttention(d_model, num_heads)
-        self.mha2 = MultiheadAttention(d_model, num_heads)
+        self.mha1 = MultiHeadAttention(d_model, num_heads)
+        self.mha2 = MultiHeadAttention(d_model, num_heads)
 
         self.ffn = point_wise_feed_forward_network(d_model, d_feedforward)
 
@@ -27,7 +28,7 @@ class DecoderLayer(torch.nn.Module):
 
     def forward(self, x, enc_output, look_ahead_mask, padding_mask):
 
-        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)
+        attn1, attn_weights_block1 = self.mha1(x, look_ahead_mask)
         attn1 = self.dropout1(attn1)
         out1 = self.layernorm1(attn1 + x)
 
