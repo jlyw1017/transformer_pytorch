@@ -1,3 +1,7 @@
+
+# ODO: move to config. module import is not suitable if you have many
+#  hparameter setting files. use json instead.
+
 hparameters = {
     "num_layers":4,
     "d_model":128,

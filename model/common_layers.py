@@ -10,8 +10,11 @@ def get_angles(pos, i, d_model):
     return pos * angle_rates
 
 
-def positional_encoding(position, d_model):  # d_model是位置编码的长度，相当于position encoding的embedding_dim？
+def positional_encoding(position, d_model):
     """Encodes positional information to """
+    # d_model是位置编码的长度，相当于position encoding的embedding_dim？
+    # d_model 是embedding_dim, meige  word  de vector
+
     angle_rads = get_angles(np.arange(position)[:, np.newaxis],  # [50, 1]
                             np.arange(d_model)[np.newaxis, :],  # [1, d_model=512]
                             d_model)

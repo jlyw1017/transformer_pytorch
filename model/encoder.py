@@ -1,8 +1,7 @@
 import torch
-from model.utils import positional_encoding, \
-                           scaled_dot_product_attention, \
-                           point_wise_feed_forward_network, \
-                           MultiHeadAttention
+from model.common_layers import (positional_encoding,
+                                 point_wise_feed_forward_network,
+                                 MultiHeadAttention)
 
 class EncoderLayer(torch.nn.Module):
     def __init__(self, 

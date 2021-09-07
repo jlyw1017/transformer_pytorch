@@ -1,8 +1,8 @@
 import torch
 from torch.nn.modules import dropout
-from model.utils import (point_wise_feed_forward_network,
-                         positional_encoding,
-                         MultiHeadAttention)
+from model.common_layers import (point_wise_feed_forward_network,
+                                 positional_encoding,
+                                 MultiHeadAttention)
 
 
 class DecoderLayer(torch.nn.Module):
